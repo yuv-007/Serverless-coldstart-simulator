@@ -1,3 +1,6 @@
+from Controllers.fixed_pool import FixedWarmPoolController
+from Controllers.no_prewarm import NoPrewarmController
+from Controllers.threshold import ThresholdController
 from Simulator.config import SimulationConfig
 from Simulator.engine import ServerlessSimulator
 from Simulator.instance import FunctionInstance
@@ -54,3 +57,24 @@ def test_baseline_simulator_runs_and_reports_summary():
     assert "cold_starts" in result
     assert "metrics" in result
     assert result["total_requests"] >= 0
+
+
+def test_controllers_expose_expected_actions():
+    no_prewarm = NoPrewarmController()
+    fixed = FixedWarmPoolController(warm_pool_target=3)
+    threshold = ThresholdController(threshold=5)
+
+    state = {"warm_instances": 1, "queue_length": 2}
+    assert no_prewarm.decide(state)["action"] == "serve_or_start"
+    assert fixed.decide(state)["target_warm_instances"] == 3
+    assert threshold.decide({"queue_length": 6})["action"] == "prewarm"
+
+
+def test_simulator_accepts_controller_and_produces_summary():
+    config = SimulationConfig(duration_seconds=10, seed=9, request_rate_per_second=3, cold_start_time_ms=80)
+    sim = ServerlessSimulator(config)
+    result = sim.run(controller=FixedWarmPoolController(warm_pool_target=2))
+
+    assert "controller" in result
+    assert result["controller"] == "FixedWarmPoolController"
+    assert "metrics" in result
