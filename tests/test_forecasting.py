@@ -1,6 +1,16 @@
 from Controllers.forecast import ForecastController
+from Controllers.uncertainty import UncertaintyAwareForecastController
 from Forecasting.baseline import MovingAverageForecaster
 from Forecasting.uncertainty import ForecastUncertaintyModel
+
+
+def test_uncertainty_controller_uses_upper_bound_for_prewarm_decision():
+    controller = UncertaintyAwareForecastController(prewarm_threshold=11, uncertainty_margin=0.2)
+    state = {"warm_instances": 1, "queue_length": 0, "request_rate": 9}
+    decision = controller.decide(state)
+
+    assert decision["action"] == "maintain"
+    assert "upper_bound" in decision
 
 
 def test_forecast_controller_issues_prewarm_when_demand_rises():
