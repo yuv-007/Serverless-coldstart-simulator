@@ -83,6 +83,7 @@ class ServerlessSimulator:
         state = {
             "warm_instances": len(self.warm_instance_ids),
             "queue_length": max(0, self.total_requests - len(self.warm_instance_ids)),
+            "request_rate": self.config.request_rate_per_second,
         }
         self._apply_controller_decision(state)
 

@@ -8,6 +8,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from Controllers.fixed_pool import FixedWarmPoolController
+from Controllers.forecast import ForecastController
 from Controllers.no_prewarm import NoPrewarmController
 from Controllers.threshold import ThresholdController
 from Simulator.config import SimulationConfig
@@ -29,6 +30,7 @@ def main():
         ("NoPrewarmController", NoPrewarmController()),
         ("FixedWarmPoolController", FixedWarmPoolController(warm_pool_target=2)),
         ("ThresholdController", ThresholdController(threshold=1)),
+        ("ForecastController", ForecastController(window=3, prewarm_threshold=10, target_warm_instances=2)),
     ]
 
     print("Baseline comparison")
