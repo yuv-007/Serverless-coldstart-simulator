@@ -14,6 +14,7 @@ from Controllers.base import (
     ControllerState,
 )
 from Controllers.base import ControllerState
+from Controllers.forecast import ForecastController
 
 
 def test_function_instance_lifecycle():
@@ -597,4 +598,24 @@ def test_migrated_threshold_controller_works_with_simulator():
     )
 
     assert result["controller"] == "ThresholdController"
+    assert result["total_requests"] > 0
+
+def test_migrated_forecast_controller_works_with_simulator():
+    config = SimulationConfig(
+        duration_seconds=2,
+        request_rate_per_second=5,
+        controller_interval_seconds=1.0,
+    )
+
+    simulator = ServerlessSimulator(config)
+
+    result = simulator.run(
+        controller=ForecastController(
+            window=3,
+            prewarm_threshold=1,
+            target_warm_instances=2,
+        )
+    )
+
+    assert result["controller"] == "ForecastController"
     assert result["total_requests"] > 0
