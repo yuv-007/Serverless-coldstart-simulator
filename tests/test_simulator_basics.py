@@ -78,3 +78,233 @@ def test_simulator_accepts_controller_and_produces_summary():
     assert "controller" in result
     assert result["controller"] == "FixedWarmPoolController"
     assert "metrics" in result
+
+def test_engine_processes_events_in_timestamp_order():
+    from Simulator.engine import SimulatorEngine
+
+    engine = SimulatorEngine()
+    seen = []
+
+    engine.register_handler(
+        "probe",
+        lambda event: seen.append(event.payload["value"]),
+    )
+
+    engine.add_event(
+        20.0,
+        "probe",
+        {"value": 20},
+    )
+
+    engine.add_event(
+        10.0,
+        "probe",
+        {"value": 10},
+    )
+
+    result = engine.run()
+
+    assert seen == [10, 20]
+    assert result["events_processed"] == 2
+    assert result["simulation_time"] == 20.0
+
+def test_cold_start_is_modeled_as_elapsed_simulated_time():
+    config = SimulationConfig(
+        duration_seconds=0.001,
+        request_rate_per_second=1000,
+        cold_start_time_ms=300,
+        execution_time_ms=50,
+    )
+
+    simulator = ServerlessSimulator(config)
+
+    result = simulator.run()
+
+    request = result["requests"][0]
+
+    assert request["cold_start"] is True
+    assert request["latency_ms"] == 350.0
+    assert request["start_time"] == 300.0
+    assert request["completion_time"] == 350.0
+
+def test_prewarm_is_completed_before_a_later_request_arrives():
+    config = SimulationConfig(
+        duration_seconds=1,
+        request_rate_per_second=0,
+        cold_start_time_ms=300,
+        execution_time_ms=50,
+    )
+
+    simulator = ServerlessSimulator(config)
+
+    simulator.controller = FixedWarmPoolController(
+        warm_pool_target=1
+    )
+
+    simulator._apply_controller_decision(
+        simulator._controller_state()
+    )
+
+    request = Request(
+        request_id="r-1",
+        arrival_time=500.0,
+        execution_time_ms=50.0,
+    )
+
+    simulator.engine.add_event(
+        500.0,
+        simulator.REQUEST_ARRIVAL,
+        {"request": request},
+    )
+
+    simulator.engine.run()
+
+    observed = simulator.requests["r-1"]
+
+    assert observed.cold_start is False
+    assert observed.start_time == 500.0
+    assert observed.latency_ms == 50.0
+
+def test_request_arriving_during_prewarm_waits_for_startup():
+    config = SimulationConfig(
+        duration_seconds=1,
+        request_rate_per_second=0,
+        cold_start_time_ms=300,
+        execution_time_ms=50,
+    )
+
+    simulator = ServerlessSimulator(config)
+
+    simulator.controller = FixedWarmPoolController(
+        warm_pool_target=1
+    )
+
+    simulator._apply_controller_decision(
+        simulator._controller_state()
+    )
+
+    request = Request(
+        request_id="r-1",
+        arrival_time=100.0,
+        execution_time_ms=50.0,
+    )
+
+    simulator.engine.add_event(
+        100.0,
+        simulator.REQUEST_ARRIVAL,
+        {"request": request},
+    )
+
+    simulator.engine.run()
+
+    observed = simulator.requests["r-1"]
+
+    assert observed.cold_start is False
+    assert observed.start_time == 300.0
+    assert observed.latency_ms == 250.0
+
+def test_simultaneous_requests_can_scale_to_multiple_instances():
+    config = SimulationConfig(
+        duration_seconds=1,
+        request_rate_per_second=0,
+        cold_start_time_ms=300,
+        execution_time_ms=50,
+        max_instances=2,
+        max_concurrency_per_instance=1,
+    )
+
+    simulator = ServerlessSimulator(config)
+
+    requests = [
+        Request(
+            request_id=f"r-{i}",
+            arrival_time=0.0,
+            execution_time_ms=50.0,
+        )
+        for i in range(1, 4)
+    ]
+
+    for request in requests:
+        simulator.engine.add_event(
+            0.0,
+            simulator.REQUEST_ARRIVAL,
+            {"request": request},
+        )
+
+    simulator.engine.run()
+
+    assert len(simulator.instances) == 2
+    assert simulator.cold_starts == 2
+    assert len(simulator.requests) == 3
+
+def test_excess_requests_are_queued_when_max_instances_are_busy():
+    config = SimulationConfig(
+        duration_seconds=1,
+        request_rate_per_second=0,
+        cold_start_time_ms=300,
+        execution_time_ms=50,
+        max_instances=2,
+        max_concurrency_per_instance=1,
+    )
+
+    simulator = ServerlessSimulator(config)
+
+    requests = [
+        Request(
+            request_id=f"r-{i}",
+            arrival_time=0.0,
+            execution_time_ms=50.0,
+        )
+        for i in range(1, 4)
+    ]
+
+    for request in requests:
+        simulator.engine.add_event(
+            0.0,
+            simulator.REQUEST_ARRIVAL,
+            {"request": request},
+        )
+
+    simulator.engine.run()
+
+    results = simulator.requests
+
+    assert results["r-1"].start_time == 300.0
+    assert results["r-2"].start_time == 300.0
+    assert results["r-3"].start_time == 350.0
+
+def test_queued_request_is_not_marked_as_cold_start():
+    config = SimulationConfig(
+        duration_seconds=1,
+        request_rate_per_second=0,
+        cold_start_time_ms=300,
+        execution_time_ms=50,
+        max_instances=2,
+        max_concurrency_per_instance=1,
+    )
+
+    simulator = ServerlessSimulator(config)
+
+    requests = [
+        Request(
+            request_id=f"r-{i}",
+            arrival_time=0.0,
+            execution_time_ms=50.0,
+        )
+        for i in range(1, 4)
+    ]
+
+    for request in requests:
+        simulator.engine.add_event(
+            0.0,
+            simulator.REQUEST_ARRIVAL,
+            {"request": request},
+        )
+
+    simulator.engine.run()
+
+    results = simulator.requests
+
+    assert results["r-1"].cold_start is True
+    assert results["r-2"].cold_start is True
+    assert results["r-3"].cold_start is False

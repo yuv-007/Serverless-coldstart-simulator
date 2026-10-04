@@ -11,6 +11,7 @@ class SimulationConfig:
     cold_start_time_ms: float = 300.0
     execution_time_ms: float = 50.0
     max_instances: int = 50
+    max_concurrency_per_instance: int = 1
     idle_timeout_seconds: float = 60.0
     slo_latency_ms: float = 200.0
     warm_pool_target: int = 2
