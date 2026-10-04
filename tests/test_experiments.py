@@ -195,3 +195,72 @@ def test_experiment_runner_requires_trace_or_workload():
 
     with pytest.raises(ValueError):
         ExperimentRunner(config)
+
+def test_experiment_result_records_workload_configuration():
+
+    config = SimulationConfig(
+        duration_seconds=2,
+        request_rate_per_second=4,
+    )
+
+    workload = WorkloadSpec(
+        duration_seconds=2,
+        rate_per_second=4,
+        seed=123,
+        arrival_process="bursty",
+        burst_probability=0.5,
+        burst_multiplier=3.0,
+        burst_duration_seconds=2,
+    )
+
+    runner = ExperimentRunner(
+        config,
+        workload=workload,
+    )
+
+    results = runner.run(
+        {
+            "no_prewarm": lambda: NoPrewarmController(),
+        }
+    )
+
+    result = results[0]
+
+    assert result.workload_duration_seconds == 2
+    assert result.workload_rate_per_second == 4
+    assert result.workload_seed == 123
+    assert result.workload_arrival_process == "bursty"
+
+def test_experiment_rows_include_workload_configuration():
+
+    config = SimulationConfig(
+        duration_seconds=2,
+        request_rate_per_second=4,
+    )
+
+    workload = WorkloadSpec(
+        duration_seconds=2,
+        rate_per_second=4,
+        seed=99,
+        arrival_process="poisson",
+    )
+
+    runner = ExperimentRunner(
+        config,
+        workload=workload,
+    )
+
+    results = runner.run(
+        {
+            "no_prewarm": lambda: NoPrewarmController(),
+        }
+    )
+
+    rows = runner.as_rows(results)
+
+    row = rows[0]
+
+    assert row["workload_duration_seconds"] == 2
+    assert row["workload_rate_per_second"] == 4
+    assert row["workload_seed"] == 99
+    assert row["workload_arrival_process"] == "poisson"

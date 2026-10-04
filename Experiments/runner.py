@@ -70,6 +70,7 @@ class ExperimentRunner:
                 ExperimentResult.from_simulation(
                     name,
                     result,
+                    workload=self.workload,
                 )
             )
 
@@ -83,6 +84,10 @@ class ExperimentRunner:
         return [
             {
                 "controller": result.controller_name,
+                "workload_duration_seconds": result.workload_duration_seconds,
+                "workload_rate_per_second": result.workload_rate_per_second,
+                "workload_seed": result.workload_seed,
+                "workload_arrival_process": result.workload_arrival_process,
                 "total_requests": result.total_requests,
                 "cold_starts": result.cold_starts,
                 "cold_start_rate": result.cold_start_rate,

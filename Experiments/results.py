@@ -15,6 +15,12 @@ class ExperimentResult:
     p95_ms: float
     p99_ms: float
     slo_violations: int
+
+    workload_duration_seconds: float
+    workload_rate_per_second: float
+    workload_seed: int
+    workload_arrival_process: str
+
     raw_result: dict
 
     @classmethod
@@ -22,8 +28,32 @@ class ExperimentResult:
         cls,
         controller_name: str,
         result: dict,
+        workload=None,
     ) -> "ExperimentResult":
+        if workload is not None:
+            workload_duration_seconds = workload.duration_seconds
+            workload_rate_per_second = workload.rate_per_second
+            workload_seed = workload.seed
+            workload_arrival_process = workload.arrival_process
+        else:
+            metadata = result.get("traffic_metadata", {})
 
+            workload_duration_seconds = metadata.get(
+                "duration_seconds",
+                0.0,
+            )
+            workload_rate_per_second = metadata.get(
+                "rate_per_second",
+                0.0,
+            )
+            workload_seed = metadata.get(
+                "seed",
+                0,
+            )
+            workload_arrival_process = metadata.get(
+                "arrival_process",
+                "unknown",
+            )    
         metrics = result["metrics"]
         slo_latency_ms = result.get("slo_latency_ms")
         requests = result.get("requests", [])
@@ -46,5 +76,9 @@ class ExperimentResult:
             p95_ms=metrics["p95"],
             p99_ms=metrics["p99"],
             slo_violations=slo_violations,
+            workload_duration_seconds=workload_duration_seconds,
+            workload_rate_per_second=workload_rate_per_second,
+            workload_seed=workload_seed,
+            workload_arrival_process=workload_arrival_process,
             raw_result=result,
         )
