@@ -267,11 +267,17 @@ class ServerlessSimulator:
             for instance in self.instances.values()
         )
 
+        active_requests = sum(
+            instance.current_requests
+            for instance in self.instances.values()
+        )
+
         return {
             "time": self.current_time_ms,
             "warm_instances": len(self.warm_instance_ids),
             "starting_instances": starting,
             "queue_length": len(self.request_queue),
+            "active_requests": active_requests,
             "request_rate": self.config.request_rate_per_second,
         }
 

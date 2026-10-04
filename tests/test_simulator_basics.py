@@ -492,3 +492,22 @@ def test_simulator_can_produce_standardized_controller_state():
     assert state.queue_length == 0
     assert state.active_requests == 0
     assert state.request_rate == 2.0
+
+def test_controller_state_reports_active_requests():
+    config = SimulationConfig(
+        duration_seconds=10,
+        request_rate_per_second=0,
+    )
+
+    simulator = ServerlessSimulator(config)
+
+    instance = simulator._create_starting_instance(0.0)
+
+    assert instance is not None
+
+    instance.state = "WARM"
+    instance.current_requests = 3
+
+    state = simulator._controller_state()
+
+    assert state["active_requests"] == 3
