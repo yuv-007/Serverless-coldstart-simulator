@@ -9,6 +9,7 @@ from .instance import FunctionInstance
 from .metrics import compute_metrics
 from .queue import RequestQueue
 from .request import Request
+from Traffic.trace import TrafficTrace
 
 REQUEST_ARRIVAL = "request_arrival"
 INSTANCE_START_COMPLETE = "instance_start_complete"
@@ -484,43 +485,25 @@ class ServerlessSimulator:
 
             timestamp_ms += interval_ms
             
-    def _schedule_requests(self):
-        """Temporary workload adapter.
+    def _schedule_requests(self, 
+    traffic_trace: TrafficTrace | None = None,
+    ):
+        if traffic_trace is None:
+            from Traffic.synthetic import generate_request_trace
 
-        This intentionally remains here for now.
-        It will be replaced by TrafficTrace integration
-        in the next phase.
-        """
+            traffic_trace = generate_request_trace(
+                duration_seconds=self.config.duration_seconds,
+                rate_per_second=self.config.request_rate_per_second,
+                execution_time_ms=self.config.execution_time_ms,
+                seed=self.config.seed,
+            )
 
-        duration_ms = int(
-            self.config.duration_seconds * 1000
-        )
-
-        request_count = max(
-            0,
-            int(
-                self.config.request_rate_per_second
-                * self.config.duration_seconds
-            ),
-        )
-
-        if (
-            request_count == 0
-            and self.config.request_rate_per_second > 0
-        ):
-            request_count = 1
-
-        for index in range(request_count):
-
-            arrival_time_ms = (
-                index
-                / max(request_count, 1)
-            ) * duration_ms
+        for index, arrival_time_ms in enumerate(traffic_trace.arrivals_ms):
 
             request = Request(
                 request_id=f"r-{index + 1}",
                 arrival_time=float(arrival_time_ms),
-                execution_time_ms=self.config.execution_time_ms,
+                execution_time_ms=traffic_trace.execution_time_ms,
             )
 
             self.engine.add_event(
@@ -530,15 +513,18 @@ class ServerlessSimulator:
                     "request": request,
                 },
             )
-
-    def run(self, controller=None):
+    def run(
+        self,
+        controller=None,
+        traffic_trace: TrafficTrace | None = None,
+    ):
         """Run the event-driven simulation and compute metrics."""
 
         self._reset()
 
         self.controller = controller
 
-        self._schedule_requests()
+        self._schedule_requests(traffic_trace)
         self._schedule_controller_ticks()
 
         # Give controllers a chance to provision
@@ -571,7 +557,7 @@ class ServerlessSimulator:
             "total_requests": self.total_requests,
             "cold_starts": self.cold_starts,
             "warm_instances": len(self.warm_instance_ids),
-            "metrics": metrics,
+            "slo_latency_ms": self.config.slo_latency_ms, "metrics": metrics,
             "cold_start_rate": metrics["cold_start_rate"],
             "requests": [
                 {
