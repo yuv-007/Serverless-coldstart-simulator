@@ -2,7 +2,7 @@ from Controllers.fixed_pool import FixedWarmPoolController
 from Controllers.no_prewarm import NoPrewarmController
 from Controllers.threshold import ThresholdController
 from Simulator.config import SimulationConfig
-from Simulator.engine import ServerlessSimulator
+from Simulator.engine import ServerlessSimulator, SimulatorEngine
 from Simulator.instance import FunctionInstance
 from Simulator.metrics import compute_metrics
 from Simulator.request import Request
@@ -374,3 +374,38 @@ def test_requests_do_not_trigger_extra_controller_decisions():
         1000.0,
         2000.0,
     ]
+def test_controller_tick_precedes_request_arrival_at_same_timestamp():
+    processed = []
+
+    engine = SimulatorEngine()
+
+    engine.register_handler(
+        "controller_tick",
+        lambda event: processed.append("controller"),
+    )
+
+    engine.register_handler(
+        "request_arrival",
+        lambda event: processed.append("request"),
+    )
+
+    engine.add_event(
+        1000.0,
+        "request_arrival",
+        {},
+    )
+
+    engine.add_event(
+        1000.0,
+        "controller_tick",
+        {},
+    )
+
+    engine.run()
+
+    assert processed == [
+        "controller",
+        "request",
+    ]
+
+

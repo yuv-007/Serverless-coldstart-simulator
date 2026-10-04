@@ -10,18 +10,36 @@ from .metrics import compute_metrics
 from .queue import RequestQueue
 from .request import Request
 
+REQUEST_ARRIVAL = "request_arrival"
+INSTANCE_START_COMPLETE = "instance_start_complete"
+REQUEST_COMPLETE = "request_complete"
+CONTROLLER_TICK = "controller_tick"
+
+EVENT_PRIORITY = {
+CONTROLLER_TICK: 0,
+INSTANCE_START_COMPLETE: 1,
+REQUEST_ARRIVAL: 2,
+REQUEST_COMPLETE: 3,
+}
+
 
 @dataclass(order=True)
 class SimulationEvent:
     """A timestamped event in the discrete-event simulation."""
 
     timestamp: float
+    priority: int
     sequence: int
     event_type: str = field(compare=False)
     payload: dict[str, Any] = field(default_factory=dict, compare=False)
 
 
 class SimulatorEngine:
+    REQUEST_ARRIVAL = "request_arrival"
+    INSTANCE_START_COMPLETE = "instance_start_complete"
+    REQUEST_COMPLETE = "request_complete"
+    CONTROLLER_TICK = "controller_tick"
+
     """Priority-queue based discrete-event simulation engine.
 
     The engine owns simulation time and dispatches events in timestamp order.
@@ -57,6 +75,7 @@ class SimulatorEngine:
 
         event = SimulationEvent(
             timestamp=float(timestamp),
+            priority=EVENT_PRIORITY.get(event_type, 99),
             sequence=self._sequence,
             event_type=event_type,
             payload=payload or {},
@@ -90,6 +109,10 @@ class SimulatorEngine:
 
 
 class ServerlessSimulator:
+    REQUEST_ARRIVAL = REQUEST_ARRIVAL
+    INSTANCE_START_COMPLETE = INSTANCE_START_COMPLETE
+    REQUEST_COMPLETE = REQUEST_COMPLETE
+    CONTROLLER_TICK = CONTROLLER_TICK
     """Discrete-event serverless cold-start simulator.
 
     Traffic generation is intentionally kept separate from this class.
@@ -98,12 +121,7 @@ class ServerlessSimulator:
     a proper TrafficTrace.
     """
 
-    REQUEST_ARRIVAL = "request_arrival"
-    INSTANCE_START_COMPLETE = "instance_start_complete"
-    REQUEST_COMPLETE = "request_complete"
-    CONTROLLER_TICK = "controller_tick"
-
-
+    
     def __init__(self, config: SimulationConfig | None = None):
         self.config = config or SimulationConfig()
         self.rng = __import__("random").Random(self.config.seed)
@@ -336,7 +354,9 @@ class ServerlessSimulator:
 
             if instance is not None:
                 request.cold_start = True
-                self.cold_starts += 1          
+                self.cold_starts += 1 
+                
+                         
     def _on_instance_start_complete(
         self,
         event: SimulationEvent,
