@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True)
@@ -32,6 +32,7 @@ class ControllerAction:
 
     action: str
     target_warm_instances: int | None = None
+    metadata: dict = field(default_factory=dict)
 
 class Controller(ABC):
     """Backward-compatible base interface for existing controllers."""

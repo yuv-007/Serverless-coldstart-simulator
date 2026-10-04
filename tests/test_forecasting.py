@@ -6,13 +6,45 @@ from Forecasting.uncertainty import ForecastUncertaintyModel
 
 
 def test_uncertainty_controller_uses_upper_bound_for_prewarm_decision():
-    controller = UncertaintyAwareForecastController(prewarm_threshold=11, uncertainty_margin=0.2)
-    state = {"warm_instances": 1, "queue_length": 0, "request_rate": 9}
+    controller = UncertaintyAwareForecastController(
+        prewarm_threshold=11,
+        uncertainty_margin=0.2,
+    )
+
+    state = ControllerState.from_legacy_dict(
+        {
+            "warm_instances": 1,
+            "queue_length": 0,
+            "request_rate": 9,
+        }
+    )
+
     decision = controller.decide(state)
 
-    assert decision["action"] == "maintain"
-    assert "upper_bound" in decision
+    assert decision.action == "maintain_warm_pool"
+    assert decision.target_warm_instances == 1
+    assert "upper_bound" in decision.metadata
 
+def test_uncertainty_controller_prewarms_when_upper_bound_crosses_threshold():
+    controller = UncertaintyAwareForecastController(
+        prewarm_threshold=11,
+        uncertainty_margin=0.2,
+        target_warm_instances=2,
+    )
+
+    state = ControllerState.from_legacy_dict(
+        {
+            "warm_instances": 1,
+            "queue_length": 0,
+            "request_rate": 10,
+        }
+    )
+
+    decision = controller.decide(state)
+
+    assert decision.action == "prewarm"
+    assert decision.target_warm_instances == 2
+    assert decision.metadata["upper_bound"] == 12.0
 
 def test_forecast_controller_issues_prewarm_when_demand_rises():
     controller = ForecastController(
