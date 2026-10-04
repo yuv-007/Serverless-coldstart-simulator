@@ -1,5 +1,5 @@
 from __future__ import annotations
-
+from Controllers.base import ControllerState
 from dataclasses import dataclass, field
 import heapq
 from typing import Any, Callable
@@ -274,7 +274,13 @@ class ServerlessSimulator:
             "queue_length": len(self.request_queue),
             "request_rate": self.config.request_rate_per_second,
         }
-        
+
+    def _typed_controller_state(self) -> ControllerState:
+        """Return the current controller state using the standardized schema."""
+
+        return ControllerState.from_legacy_dict(
+            self._controller_state()
+        )
 
     def _start_request(
         self,

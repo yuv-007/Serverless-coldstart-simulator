@@ -13,6 +13,7 @@ from Controllers.base import (
     ControllerAction,
     ControllerState,
 )
+from Controllers.base import ControllerState
 
 
 def test_function_instance_lifecycle():
@@ -455,3 +456,39 @@ def test_base_controller_requires_decision_implementation():
     assert action.action == "maintain_warm_pool"
     assert action.target_warm_instances == 2
 
+def test_legacy_controller_state_can_be_converted_to_typed_state():
+    legacy_state = {
+        "time": 1500.0,
+        "warm_instances": 3,
+        "starting_instances": 1,
+        "queue_length": 4,
+        "active_requests": 2,
+        "request_rate": 7.5,
+    }
+
+    state = ControllerState.from_legacy_dict(legacy_state)
+
+    assert state.time_ms == 1500.0
+    assert state.warm_instances == 3
+    assert state.starting_instances == 1
+    assert state.queue_length == 4
+    assert state.active_requests == 2
+    assert state.request_rate == 7.5
+
+def test_simulator_can_produce_standardized_controller_state():
+    config = SimulationConfig(
+        duration_seconds=10,
+        request_rate_per_second=2,
+    )
+
+    simulator = ServerlessSimulator(config)
+
+    state = simulator._typed_controller_state()
+
+    assert isinstance(state, ControllerState)
+    assert state.time_ms == 0.0
+    assert state.warm_instances == 0
+    assert state.starting_instances == 0
+    assert state.queue_length == 0
+    assert state.active_requests == 0
+    assert state.request_rate == 2.0

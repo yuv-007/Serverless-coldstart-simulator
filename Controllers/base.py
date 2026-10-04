@@ -12,6 +12,18 @@ class ControllerState:
     queue_length: int
     active_requests: int
     request_rate: float
+    @classmethod
+    def from_legacy_dict(cls, state: dict) -> "ControllerState":
+        """Convert the simulator's legacy state dictionary."""
+
+        return cls(
+            time_ms=float(state.get("time", 0.0)),
+            warm_instances=int(state.get("warm_instances", 0)),
+            starting_instances=int(state.get("starting_instances", 0)),
+            queue_length=int(state.get("queue_length", 0)),
+            active_requests=int(state.get("active_requests", 0)),
+            request_rate=float(state.get("request_rate", 0.0)),
+        )
 
 
 @dataclass(frozen=True)
