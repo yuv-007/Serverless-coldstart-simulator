@@ -47,7 +47,7 @@ def test_synthetic_trace_is_reproducible():
     trace2 = generate_synthetic_trace(duration_seconds=5, rate_per_second=10, seed=7, burstiness=2)
     assert trace1 == trace2
     assert len(trace1) == 5
-    assert trace1[0]["rate"] >= 0
+    assert all(isinstance(count, int) and count >= 0 for count in trace1)
 
 
 def test_metrics_include_percentiles_and_cold_start_rate():
