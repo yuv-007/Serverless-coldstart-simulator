@@ -3,7 +3,7 @@ from Controllers.base import ControllerState
 from dataclasses import dataclass, field
 import heapq
 from typing import Any, Callable
-
+from Controllers.base import BaseController, ControllerAction, ControllerState
 from .config import SimulationConfig
 from .instance import FunctionInstance
 from .metrics import compute_metrics
@@ -227,14 +227,28 @@ class ServerlessSimulator:
         if self.controller is None:
             return
 
-        decision = self.controller.decide(state) or {}
+        if isinstance(self.controller, BaseController):
+            typed_state = ControllerState.from_legacy_dict(state)
+            decision = self.controller.decide(typed_state)
 
-        if "target_warm_instances" in decision:
+            if decision is None:
+                return
 
-            target = max(
-                0,
-                int(decision["target_warm_instances"]),
-            )
+            if not isinstance(decision, ControllerAction):
+                raise TypeError(
+                    "BaseController implementations must return ControllerAction"
+                )
+
+            target = decision.target_warm_instances
+            action = decision.action
+
+        else:
+            decision = self.controller.decide(state) or {}
+            target = decision.get("target_warm_instances")
+            action = decision.get("action")
+
+        if target is not None:
+            target = max(0, int(target))
 
             active = sum(
                 instance.state in {"STARTING", "WARM"}
@@ -248,11 +262,12 @@ class ServerlessSimulator:
 
             return
 
-        if decision.get("action") == "prewarm":
-
+        if action == "prewarm":
             count = max(
                 0,
-                int(decision.get("count", 0)),
+                int(decision.get("count", 0))
+                if isinstance(decision, dict)
+                else 0,
             )
 
             for _ in range(count):

@@ -1,8 +1,11 @@
-from .base import Controller
+from .base import BaseController, ControllerAction, ControllerState
 
 
-class NoPrewarmController(Controller):
+class NoPrewarmController(BaseController):
     """Baseline strategy: create instances only when they are needed."""
 
-    def decide(self, state):
-        return {"action": "serve_or_start", "target_warm_instances": state.get("warm_instances", 0)}
+    def decide(self, state: ControllerState) -> ControllerAction:
+        return ControllerAction(
+            action="serve_or_start",
+            target_warm_instances=state.warm_instances,
+        )

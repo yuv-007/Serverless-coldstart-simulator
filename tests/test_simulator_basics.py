@@ -67,15 +67,21 @@ def test_baseline_simulator_runs_and_reports_summary():
 
 
 def test_controllers_expose_expected_actions():
+    state = {"warm_instances": 1, "queue_length": 2}
+
     no_prewarm = NoPrewarmController()
     fixed = FixedWarmPoolController(warm_pool_target=3)
-    threshold = ThresholdController(threshold=5)
+    threshold = ThresholdController(...)
 
-    state = {"warm_instances": 1, "queue_length": 2}
-    assert no_prewarm.decide(state)["action"] == "serve_or_start"
+    no_prewarm_action = no_prewarm.decide(
+        ControllerState.from_legacy_dict(state)
+    )
+
+    assert no_prewarm_action.action == "serve_or_start"
+    assert no_prewarm_action.target_warm_instances == 1
+
     assert fixed.decide(state)["target_warm_instances"] == 3
     assert threshold.decide({"queue_length": 6})["action"] == "prewarm"
-
 
 def test_simulator_accepts_controller_and_produces_summary():
     config = SimulationConfig(duration_seconds=10, seed=9, request_rate_per_second=3, cold_start_time_ms=80)
@@ -511,3 +517,19 @@ def test_controller_state_reports_active_requests():
     state = simulator._controller_state()
 
     assert state["active_requests"] == 3
+
+def test_migrated_no_prewarm_controller_works_with_simulator():
+    config = SimulationConfig(
+        duration_seconds=2,
+        request_rate_per_second=1,
+        controller_interval_seconds=1.0,
+    )
+
+    simulator = ServerlessSimulator(config)
+
+    result = simulator.run(
+        controller=NoPrewarmController()
+    )
+
+    assert result["controller"] == "NoPrewarmController"
+    assert result["total_requests"] > 0
