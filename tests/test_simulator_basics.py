@@ -67,11 +67,14 @@ def test_baseline_simulator_runs_and_reports_summary():
 
 
 def test_controllers_expose_expected_actions():
-    state = {"warm_instances": 1, "queue_length": 2}
-
     no_prewarm = NoPrewarmController()
     fixed = FixedWarmPoolController(warm_pool_target=3)
-    threshold = ThresholdController(...)
+    threshold = ThresholdController(threshold=5)
+
+    state = {
+        "warm_instances": 1,
+        "queue_length": 2,
+    }
 
     no_prewarm_action = no_prewarm.decide(
         ControllerState.from_legacy_dict(state)
@@ -80,8 +83,33 @@ def test_controllers_expose_expected_actions():
     assert no_prewarm_action.action == "serve_or_start"
     assert no_prewarm_action.target_warm_instances == 1
 
-    assert fixed.decide(state)["target_warm_instances"] == 3
-    assert threshold.decide({"queue_length": 6})["action"] == "prewarm"
+    fixed_action = fixed.decide(
+        ControllerState.from_legacy_dict(state)
+    )
+
+    assert fixed_action.action == "maintain_warm_pool"
+    assert fixed_action.target_warm_instances == 3
+
+    threshold_action = threshold.decide(
+        ControllerState.from_legacy_dict(
+            {"queue_length": 6}
+        )
+    )
+
+    assert threshold_action.action == "prewarm"
+    assert threshold_action.target_warm_instances == 1
+
+    threshold_no_action = threshold.decide(
+        ControllerState.from_legacy_dict(
+            {
+                "queue_length": 2,
+                "warm_instances": 3,
+            }
+        )
+    )
+
+    assert threshold_no_action.action == "maintain_warm_pool"
+    assert threshold_no_action.target_warm_instances == 3
 
 def test_simulator_accepts_controller_and_produces_summary():
     config = SimulationConfig(duration_seconds=10, seed=9, request_rate_per_second=3, cold_start_time_ms=80)
@@ -532,4 +560,41 @@ def test_migrated_no_prewarm_controller_works_with_simulator():
     )
 
     assert result["controller"] == "NoPrewarmController"
+    assert result["total_requests"] > 0
+
+def test_migrated_fixed_pool_controller_works_with_simulator():
+    config = SimulationConfig(
+        duration_seconds=2,
+        request_rate_per_second=1,
+        controller_interval_seconds=1.0,
+    )
+
+    simulator = ServerlessSimulator(config)
+
+    result = simulator.run(
+        controller=FixedWarmPoolController(
+            warm_pool_target=2
+        )
+    )
+
+    assert result["controller"] == "FixedWarmPoolController"
+    assert result["total_requests"] > 0
+
+def test_migrated_threshold_controller_works_with_simulator():
+    config = SimulationConfig(
+        duration_seconds=2,
+        request_rate_per_second=5,
+        controller_interval_seconds=1.0,
+    )
+
+    simulator = ServerlessSimulator(config)
+
+    result = simulator.run(
+        controller=ThresholdController(
+            threshold=1,
+            prewarm_count=1,
+        )
+    )
+
+    assert result["controller"] == "ThresholdController"
     assert result["total_requests"] > 0
