@@ -6,7 +6,7 @@ from Controllers.base import Controller
 from Simulator.config import SimulationConfig
 from Simulator.engine import ServerlessSimulator
 from Traffic.trace import TrafficTrace
-
+from .workload import WorkloadSpec
 from .results import ExperimentResult
 
 
@@ -19,11 +19,28 @@ class ExperimentRunner:
     def __init__(
         self,
         config: SimulationConfig,
-        traffic_trace: TrafficTrace,
+        traffic_trace: TrafficTrace | None = None,
+        workload: WorkloadSpec | None = None,
     ):
         self.config = config
-        self.traffic_trace = traffic_trace
 
+        if traffic_trace is not None and workload is not None:
+            raise ValueError(
+                "Provide either traffic_trace or workload, not both"
+            )
+
+        if traffic_trace is None and workload is None:
+            raise ValueError(
+                "Either traffic_trace or workload must be provided"
+            )
+
+        self.workload = workload
+
+        if traffic_trace is not None:
+            self.traffic_trace = traffic_trace
+        else:
+            self.traffic_trace = workload.generate()
+            
     def run(
         self,
         controllers: Mapping[
