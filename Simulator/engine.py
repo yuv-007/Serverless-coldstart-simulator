@@ -274,6 +274,7 @@ class ServerlessSimulator:
             "queue_length": len(self.request_queue),
             "request_rate": self.config.request_rate_per_second,
         }
+        
 
     def _start_request(
         self,

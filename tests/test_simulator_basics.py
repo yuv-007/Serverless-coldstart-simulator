@@ -8,6 +8,11 @@ from Simulator.metrics import compute_metrics
 from Simulator.request import Request
 from Traffic.synthetic import generate_synthetic_trace
 from Controllers.static import StaticController
+from Controllers.base import (
+    BaseController,
+    ControllerAction,
+    ControllerState,
+)
 
 
 def test_function_instance_lifecycle():
@@ -408,4 +413,45 @@ def test_controller_tick_precedes_request_arrival_at_same_timestamp():
         "request",
     ]
 
+
+def test_controller_state_contains_common_observations():
+    state = ControllerState(
+        time_ms=1000.0,
+        warm_instances=3,
+        starting_instances=1,
+        queue_length=4,
+        active_requests=2,
+        request_rate=8.5,
+    )
+
+    assert state.time_ms == 1000.0
+    assert state.warm_instances == 3
+    assert state.starting_instances == 1
+    assert state.queue_length == 4
+    assert state.active_requests == 2
+    assert state.request_rate == 8.5
+
+def test_base_controller_requires_decision_implementation():
+    class ExampleController(BaseController):
+        def decide(self, state):
+            return ControllerAction(
+                action="maintain_warm_pool",
+                target_warm_instances=2,
+            )
+
+    controller = ExampleController()
+
+    state = ControllerState(
+        time_ms=0.0,
+        warm_instances=2,
+        starting_instances=0,
+        queue_length=0,
+        active_requests=0,
+        request_rate=0.0,
+    )
+
+    action = controller.decide(state)
+
+    assert action.action == "maintain_warm_pool"
+    assert action.target_warm_instances == 2
 
