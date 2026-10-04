@@ -17,4 +17,5 @@ class SimulationConfig:
     warm_pool_target: int = 2
     burstiness: float = 0.0
     log_enabled: bool = False
+    controller_interval_seconds: float = 1.0
     extra: dict = field(default_factory=dict)

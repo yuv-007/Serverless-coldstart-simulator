@@ -101,6 +101,8 @@ class ServerlessSimulator:
     REQUEST_ARRIVAL = "request_arrival"
     INSTANCE_START_COMPLETE = "instance_start_complete"
     REQUEST_COMPLETE = "request_complete"
+    CONTROLLER_TICK = "controller_tick"
+
 
     def __init__(self, config: SimulationConfig | None = None):
         self.config = config or SimulationConfig()
@@ -134,6 +136,10 @@ class ServerlessSimulator:
         self.engine.register_handler(
             self.REQUEST_COMPLETE,
             self._on_request_complete,
+        )
+        self.engine.register_handler(
+            self.CONTROLLER_TICK,
+            self._on_controller_tick,
         )
 
     @property
@@ -271,6 +277,18 @@ class ServerlessSimulator:
             },
         )
 
+    def _on_controller_tick(
+        self,
+        event: SimulationEvent,
+    ):
+        """Give the controller a periodic decision opportunity."""
+
+        self.current_time_ms = event.timestamp
+
+        self._apply_controller_decision(
+            self._controller_state()
+        )
+
     def _on_request_arrival(
         self,
         event: SimulationEvent,
@@ -282,10 +300,7 @@ class ServerlessSimulator:
 
         self.requests[request.request_id] = request
 
-        self._apply_controller_decision(
-            self._controller_state()
-        )
-
+       
         instance = self._available_instance()
 
         if instance is not None:
@@ -397,7 +412,30 @@ class ServerlessSimulator:
                 self.request_queue.enqueue(
                     queued_request
                 )
+    def _schedule_controller_ticks(self):
+        """Schedule periodic controller decision events."""
 
+        interval_ms = (
+            self.config.controller_interval_seconds * 1000.0
+        )
+
+        if interval_ms <= 0:
+            return
+
+        simulation_duration_ms = (
+            self.config.duration_seconds * 1000.0
+        )
+
+        timestamp_ms = interval_ms
+
+        while timestamp_ms <= simulation_duration_ms:
+            self.engine.add_event(
+                timestamp_ms,
+                self.CONTROLLER_TICK,
+            )
+
+            timestamp_ms += interval_ms
+            
     def _schedule_requests(self):
         """Temporary workload adapter.
 
@@ -453,6 +491,7 @@ class ServerlessSimulator:
         self.controller = controller
 
         self._schedule_requests()
+        self._schedule_controller_ticks()
 
         # Give controllers a chance to provision
         # instances before traffic begins.

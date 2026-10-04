@@ -7,6 +7,7 @@ from Simulator.instance import FunctionInstance
 from Simulator.metrics import compute_metrics
 from Simulator.request import Request
 from Traffic.synthetic import generate_synthetic_trace
+from Controllers.static import StaticController
 
 
 def test_function_instance_lifecycle():
@@ -308,3 +309,68 @@ def test_queued_request_is_not_marked_as_cold_start():
     assert results["r-1"].cold_start is True
     assert results["r-2"].cold_start is True
     assert results["r-3"].cold_start is False
+
+def test_static_controller_maintains_fixed_target():
+    controller = StaticController(target_instances=5)
+
+    decision = controller.decide({
+        "warm_instances": 1,
+        "starting_instances": 0,
+        "queue_length": 0,
+    })
+
+    assert decision["action"] == "maintain_warm_pool"
+    assert decision["target_warm_instances"] == 5
+
+def test_controller_runs_on_periodic_control_ticks():
+    class RecordingController:
+        def __init__(self):
+            self.times = []
+
+        def decide(self, state):
+            self.times.append(state["time"])
+            return {}
+
+    config = SimulationConfig(
+        duration_seconds=3,
+        request_rate_per_second=0,
+        controller_interval_seconds=1.0,
+    )
+
+    controller = RecordingController()
+    simulator = ServerlessSimulator(config)
+
+    simulator.run(controller=controller)
+
+    assert controller.times == [
+        0.0,
+        1000.0,
+        2000.0,
+        3000.0,
+    ]
+
+def test_requests_do_not_trigger_extra_controller_decisions():
+    class RecordingController:
+        def __init__(self):
+            self.times = []
+
+        def decide(self, state):
+            self.times.append(state["time"])
+            return {}
+
+    config = SimulationConfig(
+        duration_seconds=2,
+        request_rate_per_second=10,
+        controller_interval_seconds=1.0,
+    )
+
+    controller = RecordingController()
+    simulator = ServerlessSimulator(config)
+
+    simulator.run(controller=controller)
+
+    assert controller.times == [
+        0.0,
+        1000.0,
+        2000.0,
+    ]
