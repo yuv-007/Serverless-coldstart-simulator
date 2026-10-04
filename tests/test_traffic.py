@@ -113,3 +113,74 @@ def test_zero_rate_produces_empty_trace():
     )
 
     assert trace.arrivals_ms == ()
+
+def test_bursty_request_trace_is_reproducible():
+
+    trace_a = generate_request_trace(
+        duration_seconds=10,
+        rate_per_second=5,
+        seed=42,
+        arrival_process="bursty",
+        burst_probability=0.5,
+        burst_multiplier=4.0,
+        burst_duration_seconds=2,
+    )
+
+    trace_b = generate_request_trace(
+        duration_seconds=10,
+        rate_per_second=5,
+        seed=42,
+        arrival_process="bursty",
+        burst_probability=0.5,
+        burst_multiplier=4.0,
+        burst_duration_seconds=2,
+    )
+
+    assert trace_a.arrivals_ms == trace_b.arrivals_ms
+
+def test_different_bursty_seeds_produce_different_traces():
+
+    trace_a = generate_request_trace(
+        duration_seconds=10,
+        rate_per_second=5,
+        seed=42,
+        arrival_process="bursty",
+    )
+
+    trace_b = generate_request_trace(
+        duration_seconds=10,
+        rate_per_second=5,
+        seed=99,
+        arrival_process="bursty",
+    )
+
+    assert trace_a.arrivals_ms != trace_b.arrivals_ms
+
+def test_bursty_trace_is_chronologically_ordered():
+
+    trace = generate_request_trace(
+        duration_seconds=10,
+        rate_per_second=5,
+        seed=42,
+        arrival_process="bursty",
+    )
+
+    assert list(trace.arrivals_ms) == sorted(
+        trace.arrivals_ms
+    )
+
+def test_invalid_burst_probability_is_rejected():
+
+    try:
+        generate_request_trace(
+            duration_seconds=10,
+            rate_per_second=5,
+            arrival_process="bursty",
+            burst_probability=1.5,
+        )
+    except ValueError:
+        pass
+    else:
+        raise AssertionError(
+            "Expected ValueError for invalid burst probability"
+        )
