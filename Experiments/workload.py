@@ -18,6 +18,12 @@ class WorkloadSpec:
     burst_multiplier: float = 4.0
     burst_duration_seconds: int = 1
 
+    step_rate_per_second: float | None = None
+    step_at_seconds: float | None = None
+
+    periodic_peak_rate_per_second: float | None = None
+    periodic_period_seconds: float | None = None
+
     metadata: dict = field(default_factory=dict)
 
     def generate(self) -> TrafficTrace:
@@ -32,6 +38,10 @@ class WorkloadSpec:
             burst_probability=self.burst_probability,
             burst_multiplier=self.burst_multiplier,
             burst_duration_seconds=self.burst_duration_seconds,
+            step_rate_per_second=self.step_rate_per_second,
+            step_at_seconds=self.step_at_seconds,
+            periodic_peak_rate_per_second=self.periodic_peak_rate_per_second,
+            periodic_period_seconds=self.periodic_period_seconds,
         )
 
         return trace

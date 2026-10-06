@@ -62,6 +62,10 @@ def generate_request_trace(
     burst_probability: float = 0.2,
     burst_multiplier: float = 4.0,
     burst_duration_seconds: int = 1,
+    step_rate_per_second: float | None = None,
+    step_at_seconds: float | None = None,
+    periodic_peak_rate_per_second: float | None = None,
+    periodic_period_seconds: float | None = None,
 ) -> TrafficTrace:
     """Generate a deterministic request-level traffic trace.
 
@@ -92,6 +96,9 @@ def generate_request_trace(
         ``"bursty"``
             Traffic with normal demand interrupted by configurable
             high-intensity bursts.     
+
+        ``"step"``
+            Traffic with a step function arrival process.
     """
 
     if duration_seconds < 0:
@@ -100,7 +107,7 @@ def generate_request_trace(
     if rate_per_second < 0:
         raise ValueError("rate_per_second must be non-negative")
 
-    if arrival_process not in {"uniform", "poisson",  "bursty"}:
+    if arrival_process not in {"uniform", "poisson", "bursty", "step", "periodic"}:
         raise ValueError(
             f"Unsupported arrival_process: {arrival_process}"
         )
@@ -118,7 +125,48 @@ def generate_request_trace(
         raise ValueError(
             "burst_duration_seconds must be at least 1"
         )
-        
+
+    if arrival_process == "step":
+        if step_rate_per_second is None:
+            raise ValueError(
+                "step_rate_per_second is required for step traffic"
+            )
+
+        if step_rate_per_second < 0:
+            raise ValueError(
+                "step_rate_per_second must be non-negative"
+            )
+
+        if step_at_seconds is None:
+            raise ValueError(
+                "step_at_seconds is required for step traffic"
+            )
+
+        if not 0.0 <= step_at_seconds <= duration_seconds:
+            raise ValueError(
+                "step_at_seconds must be within the workload duration"
+            )
+
+    if arrival_process == "periodic":
+        if periodic_peak_rate_per_second is None:
+            raise ValueError(
+                "periodic_peak_rate_per_second is required for periodic traffic"
+            )
+
+        if periodic_peak_rate_per_second < rate_per_second:
+            raise ValueError(
+                "periodic_peak_rate_per_second must be greater than or equal to rate_per_second"
+            )
+
+        if periodic_period_seconds is None:
+            raise ValueError(
+                "periodic_period_seconds is required for periodic traffic"
+            )
+
+        if periodic_period_seconds <= 0:
+            raise ValueError(
+                "periodic_period_seconds must be positive"
+            )
     request_count = int(
         rate_per_second * duration_seconds
     )
@@ -161,7 +209,7 @@ def generate_request_trace(
 
         arrivals_ms = tuple(arrivals)
 
-    else:
+    elif arrival_process == "bursty":
         rng = random.Random(seed)
 
         arrivals = []
@@ -205,6 +253,85 @@ def generate_request_trace(
                 burst_remaining -= 1
 
         arrivals_ms = tuple(sorted(arrivals))
+
+    elif arrival_process == "step":
+        arrivals = []
+
+        step_at_ms = step_at_seconds * 1000.0
+
+        before_duration_ms = min(
+            step_at_ms,
+            duration_ms,
+        )
+
+        before_count = int(
+            rate_per_second * before_duration_ms / 1000.0
+        )
+
+        after_duration_ms = max(
+            0.0,
+            duration_ms - step_at_ms,
+        )
+
+        after_count = int(
+            step_rate_per_second * after_duration_ms / 1000.0
+        )
+
+        if before_count > 0 and rate_per_second > 0:
+            before_interval_ms = (
+                before_duration_ms / before_count
+            )
+
+            for index in range(before_count):
+                arrivals.append(
+                    index * before_interval_ms
+                )
+
+        if after_count > 0 and step_rate_per_second > 0:
+            after_interval_ms = (
+                after_duration_ms / after_count
+            )
+
+            for index in range(after_count):
+                arrivals.append(
+                    step_at_ms + index * after_interval_ms
+                )
+
+        arrivals_ms = tuple(arrivals)
+    
+    elif arrival_process == "periodic":
+        arrivals = []
+
+        period_ms = periodic_period_seconds * 1000.0
+        half_period_ms = period_ms / 2.0
+
+        current_time_ms = 0.0
+
+        while current_time_ms < duration_ms:
+
+            cycle_position_ms = current_time_ms % period_ms
+
+            if cycle_position_ms < half_period_ms:
+                current_rate = rate_per_second
+            else:
+                current_rate = periodic_peak_rate_per_second
+
+            interval_ms = (
+                1000.0 / current_rate
+                if current_rate > 0
+                else duration_ms
+            )
+
+            arrivals.append(current_time_ms)
+
+            current_time_ms += interval_ms
+
+        arrivals_ms = tuple(
+            arrival
+            for arrival in arrivals
+            if arrival < duration_ms
+        )
+
     return TrafficTrace(
         arrivals_ms=arrivals_ms,
         execution_time_ms=execution_time_ms,
@@ -217,5 +344,9 @@ def generate_request_trace(
             "burst_probability": burst_probability,
             "burst_multiplier": burst_multiplier,
             "burst_duration_seconds": burst_duration_seconds,
+            "step_rate_per_second": step_rate_per_second,
+            "step_at_seconds": step_at_seconds,
+            "periodic_peak_rate_per_second":periodic_peak_rate_per_second,
+            "periodic_period_seconds":periodic_period_seconds,
         },
     )

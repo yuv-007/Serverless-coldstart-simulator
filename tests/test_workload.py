@@ -93,3 +93,58 @@ def test_workload_spec_preserves_configuration_metadata():
     assert trace.metadata["seed"] == 7
     assert trace.metadata["arrival_process"] == "poisson"
     assert trace.metadata["rate_per_second"] == 5
+
+def test_workload_spec_generates_step_trace():
+
+    workload = WorkloadSpec(
+        duration_seconds=10,
+        rate_per_second=5,
+        step_rate_per_second=20,
+        step_at_seconds=5,
+        seed=42,
+        arrival_process="step",
+    )
+
+    trace = workload.generate()
+
+    before_step = [
+        arrival
+        for arrival in trace.arrivals_ms
+        if arrival < 5000
+    ]
+
+    after_step = [
+        arrival
+        for arrival in trace.arrivals_ms
+        if arrival >= 5000
+    ]
+
+    assert len(before_step) == 25
+    assert len(after_step) == 100
+
+def test_workload_spec_generates_periodic_trace():
+
+    workload = WorkloadSpec(
+        duration_seconds=8,
+        rate_per_second=10,
+        periodic_peak_rate_per_second=30,
+        periodic_period_seconds=4,
+        seed=42,
+        arrival_process="periodic",
+    )
+
+    trace = workload.generate()
+
+    first_half_cycle = [
+        arrival
+        for arrival in trace.arrivals_ms
+        if 0 <= arrival < 2000
+    ]
+
+    second_half_cycle = [
+        arrival
+        for arrival in trace.arrivals_ms
+        if 2000 <= arrival < 4000
+    ]
+
+    assert len(first_half_cycle) < len(second_half_cycle)
